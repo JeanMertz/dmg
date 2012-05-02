@@ -20,11 +20,13 @@
 def load_current_resource
   @dmgpkg = Chef::Resource::DmgPackage.new(new_resource.name)
   @dmgpkg.app(new_resource.app)
+  extension = new_resource.type if new_resource.type
+  extension = new_resource.extension ? ".#{new_resource.extension}" : ''
   Chef::Log.debug("Checking for application #{new_resource.app}")
   if new_resource.installed_resource
     installed = ::File.exist?(new_resource.installed_resource)
   else
-    installed = ::File.directory?("#{new_resource.destination}/#{new_resource.app}.app")
+    installed = ::File.exist?("#{::File.expand_path(new_resource.destination)}/#{new_resource.app}#{extension}")
   end
   @dmgpkg.installed(installed)
 end
@@ -32,32 +34,63 @@ end
 action :install do
   unless @dmgpkg.installed
 
-    volumes_dir = new_resource.volumes_dir ? new_resource.volumes_dir : new_resource.app
+    if new_resource.type
+      puts 'parameter "type" is deprecated, please use "extension" instead'
+      new_resource.extension = new_resource.type      
+    end
+
+    new_resource.volumes_dir new_resource.volumes_dir ? "/Volumes/#{new_resource.volumes_dir}" : nil
     dmg_name = new_resource.dmg_name ? new_resource.dmg_name : new_resource.app
     dmg_file = "#{Chef::Config[:file_cache_path]}/#{dmg_name}.dmg"
+    extension = new_resource.extension ? ".#{new_resource.extension}" : ''
+    destination = ::File.expand_path(new_resource.destination)
 
-    if new_resource.source
+    if new_resource.source =~ /^(https?|ftp|git):\/\/.+$/i
       remote_file dmg_file do
+        source new_resource.source
+        checksum new_resource.checksum if new_resource.checksum
+      end
+    elsif new_resource.source
+      cookbook_file dmg_file do
         source new_resource.source
         checksum new_resource.checksum if new_resource.checksum
       end
     end
 
-    execute "hdid #{dmg_file}" do
-      not_if "hdiutil info | grep -q 'image-path.*#{dmg_file}'"
+    ruby_block 'mount_install_unmount' do
+      block do
+        volumes_dir = new_resource.volumes_dir
+
+        # Mount the image
+        %x[hdiutil mount '#{dmg_file}'] unless %x[hdiutil info | grep -q 'image-path.*#{dmg_file}'].strip!
+
+        # Get the volume name
+        unless volumes_dir
+          %x[hdiutil info -plist].gsub!(/(\t|\n)/, '')\
+            .scan(/(?:<key>image-path<\/key>)<string>(.*?)<\/string>.*?(?:<key>mount-point<\/key>)<string>(.*?)<\/string>/)\
+            .each do |image_path, mount_point|
+              volumes_dir = mount_point if image_path == dmg_file
+            end
+        end
+
+        # Install application
+        case extension
+        when ".mpkg"
+          %x[sudo installer -pkg #{volumes_dir}/#{new_resource.app}.mpkg -target /]
+        when ".prefPane"
+          destination = ::File.expand_path('~/Library/PreferencePanes') if destination == '/Applications'
+          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{extension}", destination
+        else
+          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{extension}", destination
+        end
+
+        # Unmount volume
+        %x[hdiutil unmount '#{volumes_dir}']
+      end
     end
 
-    case new_resource.type
-    when "app"
-      execute "cp -R '/Volumes/#{volumes_dir}/#{new_resource.app}.app' '#{new_resource.destination}'"
-    when "mpkg"
-      execute "sudo installer -pkg /Volumes/#{volumes_dir}/#{new_resource.app}.mpkg -target /"
-    end
-
-    execute "hdiutil detach '/Volumes/#{volumes_dir}'"
-
-    if ::File.directory?("#{new_resource.destination}/#{new_resource.app}.app")
-      file "#{new_resource.destination}/#{new_resource.app}.app/Contents/MacOS/#{new_resource.app}" do
+    if ::File.directory?("#{destination}/#{new_resource.app}#{extension}/Contents/MacOS/")
+      file "#{destination}/#{new_resource.app}#{extension}/Contents/MacOS/#{new_resource.app}#{extension}" do
         mode 0755
         ignore_failure true
       end
