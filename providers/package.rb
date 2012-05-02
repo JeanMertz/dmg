@@ -62,7 +62,7 @@ action :install do
         volumes_dir = new_resource.volumes_dir
 
         # Mount the image
-        %x[hdiutil mount '#{dmg_file}'] unless %x[hdiutil info | grep -q 'image-path.*#{dmg_file}'].strip!
+        %x[hdiutil attach -noautoopen '#{dmg_file}'] unless %x[hdiutil info | grep -q 'image-path.*#{dmg_file}'].strip!
 
         # Get the volume name
         unless volumes_dir
@@ -85,7 +85,7 @@ action :install do
         end
 
         # Unmount volume
-        %x[hdiutil unmount '#{volumes_dir}']
+        %x[hdiutil detach '#{volumes_dir}']
       end
     end
 
