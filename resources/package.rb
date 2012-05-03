@@ -25,7 +25,7 @@ attribute :checksum, :kind_of => String, :default => nil
 attribute :volumes_dir, :kind_of => String, :default => nil
 attribute :dmg_name, :kind_of => String, :default => nil
 attribute :type, :kind_of => String, :default => nil
-attribute :extension, :kind_of => String, :default => "app"
+attribute :extension, :kind_of => [String, FalseClass], :default => "app"
 attribute :installed, :kind_of => [TrueClass, FalseClass], :default => false
 attribute :installed_resource, :kind_of => String, :default => nil
 
