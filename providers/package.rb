@@ -67,7 +67,7 @@ action :install do
         # Get the volume name
         unless volumes_dir
           %x[hdiutil info -plist].gsub!(/(\t|\n)/, '')\
-            .scan(/(?:<key>image-path<\/key>)<string>(.*?)<\/string>.*?(?:<key>mount-point<\/key>)<string>(.*?)<\/string>/)\
+            .scan(/(?:<key>image-path<\/key>)<string>([^<]+)<\/string>(?:(?!<\/array>).)+(?:<key>mount-point<\/key>)<string>([^<]+)<\/string>/)\
             .each do |image_path, mount_point|
               volumes_dir = mount_point if image_path == dmg_file
             end
