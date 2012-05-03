@@ -23,27 +23,36 @@ def load_current_resource
   extension = new_resource.type if new_resource.type
   extension = new_resource.extension ? ".#{new_resource.extension}" : ''
   Chef::Log.debug("Checking for application #{new_resource.app}")
+
+  # Set extension
+  new_resource.extension(new_resource.type) if new_resource.type
+  new_resource.extension(new_resource.extension ? ".#{new_resource.extension}" : '')
+
+  # Set correct destination based on extension
+  case new_resource.extension
+  when ".prefPane"
+    new_resource.destination(::File.expand_path('~/Library/PreferencePanes')) if new_resource.destination == '/Applications'
+  else
+    new_resource.destination(::File.expand_path(new_resource.destination))
+  end
+
+
+
   if new_resource.installed_resource
     installed = ::File.exist?(new_resource.installed_resource)
   else
-    installed = ::File.exist?("#{::File.expand_path(new_resource.destination)}/#{new_resource.app}#{extension}")
+    installed = ::File.exist?("#{::File.expand_path(new_resource.destination)}/#{new_resource.app}#{new_resource.extension}")
   end
   @dmgpkg.installed(installed)
 end
 
 action :install do
   unless @dmgpkg.installed
+    puts 'parameter "type" is deprecated, please use "extension" instead' if new_resource.type
 
-    if new_resource.type
-      puts 'parameter "type" is deprecated, please use "extension" instead'
-      new_resource.extension = new_resource.type      
-    end
-
-    new_resource.volumes_dir new_resource.volumes_dir ? "/Volumes/#{new_resource.volumes_dir}" : nil
+    new_resource.volumes_dir(new_resource.volumes_dir ? "/Volumes/#{new_resource.volumes_dir}" : nil)
     dmg_name = new_resource.dmg_name ? new_resource.dmg_name : new_resource.app
     dmg_file = "#{Chef::Config[:file_cache_path]}/#{dmg_name}.dmg"
-    extension = new_resource.extension ? ".#{new_resource.extension}" : ''
-    destination = ::File.expand_path(new_resource.destination)
 
     if new_resource.source =~ /^(https?|ftp|git):\/\/.+$/i
       remote_file dmg_file do
@@ -74,14 +83,11 @@ action :install do
         end
 
         # Install application
-        case extension
+        case new_resource.extension
         when ".mpkg"
           %x[sudo installer -pkg #{volumes_dir}/#{new_resource.app}.mpkg -target /]
-        when ".prefPane"
-          destination = ::File.expand_path('~/Library/PreferencePanes') if destination == '/Applications'
-          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{extension}", destination
         else
-          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{extension}", destination
+          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}", new_resource.destination
         end
 
         # Unmount volume
@@ -89,8 +95,8 @@ action :install do
       end
     end
 
-    if ::File.directory?("#{destination}/#{new_resource.app}#{extension}/Contents/MacOS/")
-      file "#{destination}/#{new_resource.app}#{extension}/Contents/MacOS/#{new_resource.app}#{extension}" do
+    if ::File.directory?("#{new_resource.destination}/#{new_resource.app}#{new_resource.extension}/Contents/MacOS/")
+      file "#{new_resource.destination}/#{new_resource.app}#{new_resource.extension}/Contents/MacOS/#{new_resource.app}#{new_resource.extension}" do
         mode 0755
         ignore_failure true
       end
