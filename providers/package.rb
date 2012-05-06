@@ -85,7 +85,7 @@ action :install do
         # Install application
         case new_resource.extension
         when ".mpkg", ".pkg"
-          %x[sudo installer -pkg "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}"" -target /]
+          %x[sudo installer -pkg "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}" -target /]
         else
           FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}", new_resource.destination
         end
