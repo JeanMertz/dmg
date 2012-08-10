@@ -20,8 +20,6 @@
 def load_current_resource
   @dmgpkg = Chef::Resource::DmgPackage.new(new_resource.name)
   @dmgpkg.app(new_resource.app)
-  extension = new_resource.type if new_resource.type
-  extension = new_resource.extension ? ".#{new_resource.extension}" : ''
   Chef::Log.debug("Checking for application #{new_resource.app}")
 
   # Set extension
@@ -36,8 +34,7 @@ def load_current_resource
     new_resource.destination(::File.expand_path(new_resource.destination))
   end
 
-
-
+  # Set installed flag
   if new_resource.installed_resource
     installed = ::File.exist?(new_resource.installed_resource)
   else
