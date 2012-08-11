@@ -79,12 +79,17 @@ action :install do
             end
         end
 
-        # Install application
-        case new_resource.extension
-        when ".mpkg", ".pkg"
-          %x[sudo installer -pkg "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}" -target /]
+        # Execute or install
+        if new_resource.execute == true
+          %x[ open "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}" ]
         else
-          FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}", new_resource.destination
+          # Install application
+          case new_resource.extension
+          when ".mpkg", ".pkg"
+            %x[sudo installer -pkg "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}" -target /]
+          else
+            FileUtils.cp_r "#{volumes_dir}/#{new_resource.app}#{new_resource.extension}", new_resource.destination
+          end
         end
 
         # Unmount volume
